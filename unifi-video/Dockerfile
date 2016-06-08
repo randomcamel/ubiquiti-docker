@@ -23,14 +23,30 @@ RUN echo "debconf debconf/frontend select Noninteractive" | debconf-set-selectio
     dpkg -i /tmp/unifi-video.deb || /bin/true && apt-get -yf --force-yes install && \
     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-ADD start.sh /bin
-RUN /bin/chmod +x /bin/start.sh
+# Tell mongod to log to syslog instead of to a file
+#  phusion will forward this to "docker logs" output
+# This doesn't actually do anything yet because unifi-video
+#  annoyingly starts up its on mongod instance specifying
+#  to log to a file, but it's useful to keep around for
+#  when Ubiquiti changes unifi-video to let us start
+#  our own mongod instances
+RUN perl -00 -pi -e 's/systemLog.*^$/systemLog:\n  destination: syslog\n/sm' /etc/mongod.conf
+
+ADD run_mongo.sh /etc/service/mongo/run
+ADD run_unifi.sh /etc/service/unifi-video/run
+
+RUN chown root /etc/service/mongo/run
+RUN chown root /etc/service/unifi-video/run
+RUN chown -R mongodb:mongodb /var/lib/mongodb
+RUN chown -R unifi-video:unifi-video /var/lib/unifi-video
+RUN chmod +x /etc/service/mongo/run
+RUN chmod +x /etc/service/unifi-video/run
 
 # No reason to expose the MongoDB port 7441 to the outside for most people
-EXPOSE 1935 6666 7080 7443 7445 7446 7447 
+EXPOSE 22 6666 7080 7443 7445 7446 7447 
 #EXPOSE 7441
 
 ENV SHELL /bin/bash
 
 CMD []
-ENTRYPOINT ["/bin/start.sh"]
+ENTRYPOINT ["/sbin/my_init"]
